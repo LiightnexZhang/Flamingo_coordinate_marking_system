@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>火烈鸟脚环标注工具</title>
+    <title>Flamingo Leg Band Annotation Tool</title>
+    <!-- 引入SheetJS库用于导出Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -103,26 +106,26 @@
         }
 
         #great-btn {
-            background: #FF0000; /* 红色 */
+            background: #FF0000; /* Red */
         }
 
         #american-btn {
-            background: #0000FF; /* 蓝色 */
+            background: #0000FF; /* Blue */
         }
 
         #chilean-btn {
-            background: #FFFF00; /* 黄色 */
-            color: black; /* 黄色背景上使用黑色文字 */
+            background: #FFFF00; /* Yellow */
+            color: black; /* Black text on yellow background */
         }
 
-        /* 所有选中状态统一为黑框+发光 */
+        /* Unified active state for all buttons */
         .type-btn.active, .color-btn.active {
             border: 3px solid #000 !important;
             box-shadow: 0 0 10px 3px rgba(255, 255, 0, 0.8) !important;
             transform: scale(1.1);
         }
 
-        /* 浅色按钮的选中效果 */
+        /* Active effect for light-colored buttons */
         .color-btn.active[data-color="#FFFFFF"],
         .color-btn.active[data-color="#FFFF00"],
         .color-btn.active[data-color="#00FFFF"],
@@ -156,7 +159,7 @@
             transition: all 0.2s ease;
         }
 
-        /* 添加选中状态的加粗效果 */
+        /* Bold effect for selected state */
         .color-btn.active {
             border-width: 4px !important;
             font-weight: bold;
@@ -190,7 +193,7 @@
 
         .action-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         .export-btn {
@@ -200,6 +203,15 @@
 
         .export-btn:hover {
             background: #5b4cd8;
+        }
+
+        .export-excel-btn {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .export-excel-btn:hover {
+            background: #27ae60;
         }
 
         .clear-btn {
@@ -272,7 +284,7 @@
             color: #000;
             font-weight: bold;
             font-size: 0.8rem;
-            box-shadow: 0 0 10px rgba(0,0,0,0.7);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
             transform: translate(-50%, -50%);
             cursor: pointer;
             z-index: 10;
@@ -311,450 +323,545 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <section class="image-section">
-            <div class="upload-area" id="upload-area">
-                <p>点击或拖拽图片到此处上传</p>
-                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+<div class="container">
+    <section class="image-section">
+        <div class="upload-area" id="upload-area">
+            <p>Click or drag image here to upload</p>
+            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+        </div>
+
+        <div class="image-container">
+            <img id="annotation-image" alt="Uploaded Image">
+            <p class="placeholder-text" id="placeholder">Please upload an image to start annotation</p>
+        </div>
+    </section>
+
+    <section class="control-section">
+        <h3>Flamingo Type</h3>
+        <div class="type-selector">
+            <button class="type-btn active" id="great-btn">Great</button>
+            <button class="type-btn" id="american-btn">American</button>
+            <button class="type-btn" id="chilean-btn">Chilean</button>
+        </div>
+
+        <div class="color-section">
+            <h3>Left Leg Color</h3>
+            <div class="color-palette" id="left-color-palette">
+                <!-- Left leg color buttons will be generated dynamically by JS -->
             </div>
+        </div>
 
-            <div class="image-container">
-                <img id="annotation-image" alt="上传的图片">
-                <p class="placeholder-text" id="placeholder">请上传图片开始标注</p>
+        <div class="color-section">
+            <h3>Right Leg Color</h3>
+            <div class="color-palette" id="right-color-palette">
+                <!-- Right leg color buttons will be generated dynamically by JS -->
             </div>
-        </section>
+        </div>
 
-        <section class="control-section">
-            <h3>火烈鸟类型</h3>
-            <div class="type-selector">
-                <button class="type-btn active" id="great-btn">Great</button>
-                <button class="type-btn" id="american-btn">American</button>
-                <button class="type-btn" id="chilean-btn">Chilean</button>
+        <div class="counter-display">
+            Annotation Count: <span id="counter">0</span>
+        </div>
+
+        <div class="button-group">
+            <button class="action-btn export-btn" id="export-btn">Export Annotations (JSON)</button>
+            <button class="action-btn export-excel-btn" id="export-excel-btn">Export to Excel</button>
+            <button class="action-btn clear-btn" id="clear-btn">Clear All Annotations</button>
+        </div>
+
+        <div class="annotations-panel">
+            <div class="annotations-header">
+                <h3>Annotation List</h3>
+                <span>ID-Type</span>
             </div>
-
-            <div class="color-section">
-                <h3>左腿颜色</h3>
-                <div class="color-palette" id="left-color-palette">
-                    <!-- 左腿颜色按钮将通过JS动态生成 -->
-                </div>
+            <div class="annotations-list" id="annotations-list">
+                <!-- Annotation list will be generated dynamically by JS -->
             </div>
+        </div>
+    </section>
+</div>
 
-            <div class="color-section">
-                <h3>右腿颜色</h3>
-                <div class="color-palette" id="right-color-palette">
-                    <!-- 右腿颜色按钮将通过JS动态生成 -->
-                </div>
-            </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Element references
+        const uploadArea = document.getElementById('upload-area');
+        const imageUpload = document.getElementById('image-upload');
+        const annotationImage = document.getElementById('annotation-image');
+        const placeholder = document.getElementById('placeholder');
+        const imageContainer = document.querySelector('.image-container');
+        const greatBtn = document.getElementById('great-btn');
+        const americanBtn = document.getElementById('american-btn');
+        const chileanBtn = document.getElementById('chilean-btn');
+        const leftColorPalette = document.getElementById('left-color-palette');
+        const rightColorPalette = document.getElementById('right-color-palette');
+        const counter = document.getElementById('counter');
+        const exportBtn = document.getElementById('export-btn');
+        const exportExcelBtn = document.getElementById('export-excel-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const annotationsList = document.getElementById('annotations-list');
 
-            <div class="counter-display">
-                标注数量: <span id="counter">0</span>
-            </div>
+        // State variables
+        let currentType = 'great';
+        let leftColor = '#FF0000'; // Default left leg color
+        let rightColor = '#0000FF'; // Default right leg color
+        let annotations = [];
+        let nextId = 1;
 
-            <div class="button-group">
-                <button class="action-btn export-btn" id="export-btn">导出标注数据</button>
-                <button class="action-btn clear-btn" id="clear-btn">清除所有标注</button>
-            </div>
+        // 22 predefined colors (including white)
+        const colorOptions = [
+            '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+            '#FFA500', '#808080',
+        ];
 
-            <div class="annotations-panel">
-                <div class="annotations-header">
-                    <h3>标注列表</h3>
-                    <span>ID-类型</span>
-                </div>
-                <div class="annotations-list" id="annotations-list">
-                    <!-- 标注列表将通过JS动态生成 -->
-                </div>
-            </div>
-        </section>
-    </div>
+        // Initialize left leg color picker
+        colorOptions.forEach(color => {
+            const btn = document.createElement('button');
+            btn.className = 'color-btn';
+            btn.style.backgroundColor = color;
+            btn.dataset.color = color;
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // 元素引用
-            const uploadArea = document.getElementById('upload-area');
-            const imageUpload = document.getElementById('image-upload');
-            const annotationImage = document.getElementById('annotation-image');
-            const placeholder = document.getElementById('placeholder');
-            const imageContainer = document.querySelector('.image-container');
-            const greatBtn = document.getElementById('great-btn');
-            const americanBtn = document.getElementById('american-btn');
-            const chileanBtn = document.getElementById('chilean-btn');
-            const leftColorPalette = document.getElementById('left-color-palette');
-            const rightColorPalette = document.getElementById('right-color-palette');
-            const counter = document.getElementById('counter');
-            const exportBtn = document.getElementById('export-btn');
-            const clearBtn = document.getElementById('clear-btn');
-            const annotationsList = document.getElementById('annotations-list');
-
-            // 状态变量
-            let currentType = 'great';
-            let leftColor = '#FF0000'; // 默认左腿颜色
-            let rightColor = '#0000FF'; // 默认右腿颜色
-            let annotations = [];
-            let nextId = 1;
-
-            // 22种预定义颜色（包含白色）
-            const colorOptions = [
-                '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
-                '#FFA500', '#800080', '#008000', '#000080', '#800000', '#808000', '#008080',
-                '#808080', '#FF6A88', '#4A90E2', '#50C878', '#FFD700', '#FF69B4', '#00CED1', '#7CFC00'
-            ];
-
-            // 初始化左腿颜色选择器
-            colorOptions.forEach(color => {
-                const btn = document.createElement('button');
-                btn.className = 'color-btn';
-                btn.style.backgroundColor = color;
-                btn.dataset.color = color;
-
-                // 为浅色添加边框以便可见
-                if (color === '#FFFFFF' || color === '#FFFF00' || color === '#00FFFF' ||
-                    color === '#FFD700' || color === '#FF69B4' || color === '#00CED1' ||
-                    color === '#7CFC00') {
-                    btn.style.borderColor = '#666';
-                }
-
-                if (color === leftColor) {
-                    btn.classList.add('active');
-                }
-
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('#left-color-palette .color-btn').forEach(b => {
-                        b.classList.remove('active');
-                        b.style.transform = 'scale(1)';
-                    });
-                    btn.classList.add('active');
-                    leftColor = color;
-                });
-
-                // 添加悬停效果
-                btn.addEventListener('mouseenter', function() {
-                    if (!btn.classList.contains('active')) {
-                        btn.style.transform = 'scale(1.05)';
-                        btn.style.boxShadow = '0 0 8px rgba(0,0,0,0.3)';
-                    }
-                });
-
-                btn.addEventListener('mouseleave', function() {
-                    if (!btn.classList.contains('active')) {
-                        btn.style.transform = 'scale(1)';
-                        btn.style.boxShadow = 'none';
-                    }
-                });
-
-                leftColorPalette.appendChild(btn);
-            });
-
-            // 初始化右腿颜色选择器
-            colorOptions.forEach(color => {
-                const btn = document.createElement('button');
-                btn.className = 'color-btn';
-                btn.style.backgroundColor = color;
-                btn.dataset.color = color;
-
-                // 为浅色添加边框以便可见
-                if (color === '#FFFFFF' || color === '#FFFF00' || color === '#00FFFF' ||
-                    color === '#FFD700' || color === '#FF69B4' || color === '#00CED1' ||
-                    color === '#7CFC00') {
-                    btn.style.borderColor = '#666';
-                }
-
-                if (color === rightColor) {
-                    btn.classList.add('active');
-                }
-
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('#right-color-palette .color-btn').forEach(b => {
-                        b.classList.remove('active');
-                        b.style.transform = 'scale(1)';
-                    });
-                    btn.classList.add('active');
-                    rightColor = color;
-                });
-
-                // 添加悬停效果
-                btn.addEventListener('mouseenter', function() {
-                    if (!btn.classList.contains('active')) {
-                        btn.style.transform = 'scale(1.05)';
-                        btn.style.boxShadow = '0 0 8px rgba(0,0,0,0.3)';
-                    }
-                });
-
-                btn.addEventListener('mouseleave', function() {
-                    if (!btn.classList.contains('active')) {
-                        btn.style.transform = 'scale(1)';
-                        btn.style.boxShadow = 'none';
-                    }
-                });
-
-                rightColorPalette.appendChild(btn);
-            });
-
-            // 上传区域点击事件
-            uploadArea.addEventListener('click', function() {
-                imageUpload.click();
-            });
-
-            // 文件选择变化事件
-            imageUpload.addEventListener('change', function(e) {
-                if (e.target.files && e.target.files[0]) {
-                    const reader = new FileReader();
-
-                    reader.onload = function(e) {
-                        annotationImage.src = e.target.result;
-                        annotationImage.style.display = 'block';
-                        placeholder.style.display = 'none';
-
-                        // 清除之前的标注
-                        clearAnnotations();
-                    };
-
-                    reader.readAsDataURL(e.target.files[0]);
-                }
-            });
-
-            // 拖放功能
-            uploadArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadArea.style.background = '#e0e0e0';
-            });
-
-            uploadArea.addEventListener('dragleave', function() {
-                uploadArea.style.background = '#f0f0f0';
-            });
-
-            uploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadArea.style.background = '#f0f0f0';
-
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    imageUpload.files = e.dataTransfer.files;
-                    const event = new Event('change');
-                    imageUpload.dispatchEvent(event);
-                }
-            });
-
-            // 类型切换
-            greatBtn.addEventListener('click', function() {
-                setActiveType('great');
-            });
-
-            americanBtn.addEventListener('click', function() {
-                setActiveType('american');
-            });
-
-            chileanBtn.addEventListener('click', function() {
-                setActiveType('chilean');
-            });
-
-            // 图片点击添加标注
-            annotationImage.addEventListener('click', function(e) {
-                // 获取图片相对于容器的位置和实际显示尺寸
-                const containerRect = imageContainer.getBoundingClientRect();
-                const imgRect = annotationImage.getBoundingClientRect();
-
-                // 计算点击位置相对于图片的坐标
-                const scaleX = annotationImage.naturalWidth / imgRect.width;
-                const scaleY = annotationImage.naturalHeight / imgRect.height;
-
-                const x = (e.clientX - imgRect.left) * scaleX;
-                const y = (e.clientY - imgRect.top) * scaleY;
-
-                // 判断点击的是左半部分还是右半部分
-                const isLeft = (e.clientX - imgRect.left) < imgRect.width / 2;
-                const currentLeg = isLeft ? 'left' : 'right';
-
-                // 创建标注 - 现在记录左右腿的颜色
-                createAnnotation(x, y, currentLeg, leftColor, rightColor);
-            });
-
-            // 导出按钮点击事件
-            exportBtn.addEventListener('click', function() {
-                exportAnnotations();
-            });
-
-            // 清除按钮点击事件
-            clearBtn.addEventListener('click', function() {
-                clearAnnotations();
-            });
-
-            // 设置当前活动类型
-            function setActiveType(type) {
-                currentType = type;
-
-                // 更新按钮状态
-                greatBtn.classList.remove('active');
-                americanBtn.classList.remove('active');
-                chileanBtn.classList.remove('active');
-
-                if (type === 'great') {
-                    greatBtn.classList.add('active');
-                } else if (type === 'american') {
-                    americanBtn.classList.add('active');
-                } else if (type === 'chilean') {
-                    chileanBtn.classList.add('active');
-                }
+            // Add border for light colors to make them visible
+            if (color === '#FFFFFF' || color === '#FFFF00' || color === '#00FFFF' ||
+                color === '#FFD700' || color === '#FF69B4' || color === '#00CED1' ||
+                color === '#7CFC00') {
+                btn.style.borderColor = '#666';
             }
 
-            // 创建标注 - 修改为记录左右腿颜色
-            function createAnnotation(x, y, leg, leftLegColor, rightLegColor) {
-                const id = nextId++;
-                const annotation = {
-                    id: id,
-                    type: currentType,
-                    leg: leg,
-                    leftLegColor: leftLegColor,
-                    rightLegColor: rightLegColor,
-                    x: (x / annotationImage.naturalWidth).toFixed(4),
-                    y: (y / annotationImage.naturalHeight).toFixed(4),
-                    timestamp: new Date().toISOString()
+            if (color === leftColor) {
+                btn.classList.add('active');
+            }
+
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('#left-color-palette .color-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.transform = 'scale(1)';
+                });
+                btn.classList.add('active');
+                leftColor = color;
+            });
+
+            // Add hover effect
+            btn.addEventListener('mouseenter', function () {
+                if (!btn.classList.contains('active')) {
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 0 8px rgba(0,0,0,0.3)';
+                }
+            });
+
+            btn.addEventListener('mouseleave', function () {
+                if (!btn.classList.contains('active')) {
+                    btn.style.transform = 'scale(1)';
+                    btn.style.boxShadow = 'none';
+                }
+            });
+
+            leftColorPalette.appendChild(btn);
+        });
+
+        // Initialize right leg color picker
+        colorOptions.forEach(color => {
+            const btn = document.createElement('button');
+            btn.className = 'color-btn';
+            btn.style.backgroundColor = color;
+            btn.dataset.color = color;
+
+            // Add border for light colors to make them visible
+            if (color === '#FFFFFF' || color === '#FFFF00' || color === '#00FFFF' ||
+                color === '#FFD700' || color === '#FF69B4' || color === '#00CED1' ||
+                color === '#7CFC00') {
+                btn.style.borderColor = '#666';
+            }
+
+            if (color === rightColor) {
+                btn.classList.add('active');
+            }
+
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('#right-color-palette .color-btn').forEach(b => {
+                    b.classList.remove('active');
+                    b.style.transform = 'scale(1)';
+                });
+                btn.classList.add('active');
+                rightColor = color;
+            });
+
+            // Add hover effect
+            btn.addEventListener('mouseenter', function () {
+                if (!btn.classList.contains('active')) {
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 0 8px rgba(0,0,0,0.3)';
+                }
+            });
+
+            btn.addEventListener('mouseleave', function () {
+                if (!btn.classList.contains('active')) {
+                    btn.style.transform = 'scale(1)';
+                    btn.style.boxShadow = 'none';
+                }
+            });
+
+            rightColorPalette.appendChild(btn);
+        });
+
+        // Upload area click event
+        uploadArea.addEventListener('click', function () {
+            imageUpload.click();
+        });
+
+        // File selection change event
+        imageUpload.addEventListener('change', function (e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+
+                reader.onload = function (e) {
+                    annotationImage.src = e.target.result;
+                    annotationImage.style.display = 'block';
+                    placeholder.style.display = 'none';
+
+                    // Clear previous annotations
+                    clearAnnotations();
                 };
 
-                annotations.push(annotation);
-
-                // 创建标注标记 - 根据类型使用固定颜色
-                let markerColor;
-                if (currentType === 'great') markerColor = '#FF0000'; // 红色
-                else if (currentType === 'american') markerColor = '#0000FF'; // 蓝色
-                else markerColor = '#FFFF00'; // 黄色
-
-                const marker = document.createElement('div');
-                marker.className = 'annotation-marker';
-
-                // 计算相对于显示图片的位置
-                const imgRect = annotationImage.getBoundingClientRect();
-                const scaleX = imgRect.width / annotationImage.naturalWidth;
-                const scaleY = imgRect.height / annotationImage.naturalHeight;
-
-                const displayX = x * scaleX;
-                const displayY = y * scaleY;
-
-                marker.style.left = (imgRect.left - imageContainer.getBoundingClientRect().left + displayX) + 'px';
-                marker.style.top = (imgRect.top - imageContainer.getBoundingClientRect().top + displayY) + 'px';
-                marker.style.backgroundColor = markerColor;
-                marker.textContent = id;
-                marker.dataset.id = id;
-
-                // 为浅色标注添加深色文字
-                if (markerColor === '#FFFF00') {
-                    marker.style.color = '#000';
-                } else {
-                    marker.style.color = '#FFF';
-                }
-
-                // 添加双击删除事件
-                marker.addEventListener('dblclick', function() {
-                    removeAnnotation(id);
-                });
-
-                imageContainer.appendChild(marker);
-
-                // 更新标注列表
-                updateAnnotationsList();
-
-                // 更新计数器
-                counter.textContent = annotations.length;
-            }
-
-            // 更新标注列表
-            function updateAnnotationsList() {
-                annotationsList.innerHTML = '';
-
-                annotations.forEach(ann => {
-                    const item = document.createElement('div');
-                    item.className = `annotation-item annotation-${ann.type}`;
-
-                    const info = document.createElement('div');
-                    info.className = 'annotation-info';
-                    info.textContent = `#${ann.id} - ${ann.type}`;
-
-                    const colorInfo = document.createElement('div');
-                    colorInfo.className = 'color-info';
-
-                    const leftDot = document.createElement('span');
-                    leftDot.className = 'color-dot';
-                    leftDot.style.backgroundColor = ann.leftLegColor;
-
-                    const rightDot = document.createElement('span');
-                    rightDot.className = 'color-dot';
-                    rightDot.style.backgroundColor = ann.rightLegColor;
-
-                    colorInfo.appendChild(leftDot);
-                    colorInfo.appendChild(rightDot);
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'delete-btn';
-                    deleteBtn.innerHTML = '×';
-                    deleteBtn.addEventListener('click', function() {
-                        removeAnnotation(ann.id);
-                    });
-
-                    item.appendChild(info);
-                    item.appendChild(colorInfo);
-                    item.appendChild(deleteBtn);
-                    annotationsList.appendChild(item);
-                });
-            }
-
-            // 移除标注
-            function removeAnnotation(id) {
-                // 从数组中移除
-                annotations = annotations.filter(ann => ann.id !== id);
-
-                // 从DOM中移除
-                const marker = document.querySelector(`.annotation-marker[data-id="${id}"]`);
-                if (marker) {
-                    marker.remove();
-                }
-
-                // 更新标注列表
-                updateAnnotationsList();
-
-                // 更新计数器
-                counter.textContent = annotations.length;
-            }
-
-            // 清除所有标注
-            function clearAnnotations() {
-                if (annotations.length === 0) return;
-
-                if (!confirm('确定要清除所有标注吗？此操作不可撤销。')) return;
-
-                annotations = [];
-                nextId = 1;
-
-                const markers = document.querySelectorAll('.annotation-marker');
-                markers.forEach(marker => marker.remove());
-
-                // 更新标注列表
-                updateAnnotationsList();
-
-                counter.textContent = '0';
-            }
-
-            // 导出标注数据
-            function exportAnnotations() {
-                if (annotations.length === 0) {
-                    alert('没有标注数据可导出！');
-                    return;
-                }
-
-                const data = {
-                    image: annotationImage.src.split('/').pop(), // 只保留文件名
-                    currentLeftColor: leftColor,
-                    currentRightColor: rightColor,
-                    annotations: annotations,
-                    exportedAt: new Date().toISOString()
-                };
-
-                const dataStr = JSON.stringify(data, null, 2);
-                const dataBlob = new Blob([dataStr], {type: 'application/json'});
-
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(dataBlob);
-                link.download = `flamingo_annotations_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-                link.click();
+                reader.readAsDataURL(e.target.files[0]);
             }
         });
-    </script>
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            uploadArea.style.background = '#e0e0e0';
+        });
+
+        uploadArea.addEventListener('dragleave', function () {
+            uploadArea.style.background = '#f0f0f0';
+        });
+
+        uploadArea.addEventListener('drop', function (e) {
+            e.preventDefault();
+            uploadArea.style.background = '#f0f0f0';
+
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                imageUpload.files = e.dataTransfer.files;
+                const event = new Event('change');
+                imageUpload.dispatchEvent(event);
+            }
+        });
+
+        // Type switching
+        greatBtn.addEventListener('click', function () {
+            setActiveType('great');
+        });
+
+        americanBtn.addEventListener('click', function () {
+            setActiveType('american');
+        });
+
+        chileanBtn.addEventListener('click', function () {
+            setActiveType('chilean');
+        });
+
+        // Image click to add annotation
+        annotationImage.addEventListener('click', function (e) {
+            // Get the position and actual display size of the image relative to the container
+            const containerRect = imageContainer.getBoundingClientRect();
+            const imgRect = annotationImage.getBoundingClientRect();
+
+            // Calculate coordinates relative to the image
+            const scaleX = annotationImage.naturalWidth / imgRect.width;
+            const scaleY = annotationImage.naturalHeight / imgRect.height;
+
+            const x = (e.clientX - imgRect.left) * scaleX;
+            const y = (e.clientY - imgRect.top) * scaleY;
+
+            // Determine if the click is on the left or right half
+            const isLeft = (e.clientX - imgRect.left) < imgRect.width / 2;
+            const currentLeg = isLeft ? 'left' : 'right';
+
+            // Create annotation - now records left and right leg colors
+            createAnnotation(x, y, currentLeg, leftColor, rightColor);
+        });
+
+        // Export button click event (JSON)
+        exportBtn.addEventListener('click', function () {
+            exportAnnotations();
+        });
+
+        // Export to Excel button click event
+        exportExcelBtn.addEventListener('click', function () {
+            exportToExcel();
+        });
+
+        // Clear button click event
+        clearBtn.addEventListener('click', function () {
+            clearAnnotations();
+        });
+
+        // Set current active type
+        function setActiveType(type) {
+            currentType = type;
+
+            // Update button states
+            greatBtn.classList.remove('active');
+            americanBtn.classList.remove('active');
+            chileanBtn.classList.remove('active');
+
+            if (type === 'great') {
+                greatBtn.classList.add('active');
+            } else if (type === 'american') {
+                americanBtn.classList.add('active');
+            } else if (type === 'chilean') {
+                chileanBtn.classList.add('active');
+            }
+        }
+
+        // Create annotation - modified to record left and right leg colors
+        function createAnnotation(x, y, leg, leftLegColor, rightLegColor) {
+            const id = nextId++;
+            const annotation = {
+                id: id,
+                type: currentType,
+                leg: leg,
+                leftLegColor: leftLegColor,
+                rightLegColor: rightLegColor,
+                x: (x / annotationImage.naturalWidth).toFixed(4),
+                y: (y / annotationImage.naturalHeight).toFixed(4),
+                timestamp: new Date().toISOString()
+            };
+
+            annotations.push(annotation);
+
+            // Create annotation marker - use fixed color based on type
+            let markerColor;
+            if (currentType === 'great') markerColor = '#FF0000'; // Red
+            else if (currentType === 'american') markerColor = '#0000FF'; // Blue
+            else markerColor = '#FFFF00'; // Yellow
+
+            const marker = document.createElement('div');
+            marker.className = 'annotation-marker';
+
+            // Calculate position relative to displayed image
+            const imgRect = annotationImage.getBoundingClientRect();
+            const scaleX = imgRect.width / annotationImage.naturalWidth;
+            const scaleY = imgRect.height / annotationImage.naturalHeight;
+
+            const displayX = x * scaleX;
+            const displayY = y * scaleY;
+
+            marker.style.left = (imgRect.left - imageContainer.getBoundingClientRect().left + displayX) + 'px';
+            marker.style.top = (imgRect.top - imageContainer.getBoundingClientRect().top + displayY) + 'px';
+            marker.style.backgroundColor = markerColor;
+            marker.textContent = id;
+            marker.dataset.id = id;
+
+            // Add dark text for light-colored markers
+            if (markerColor === '#FFFF00') {
+                marker.style.color = '#000';
+            } else {
+                marker.style.color = '#FFF';
+            }
+
+            // Add double-click to delete event
+            marker.addEventListener('dblclick', function () {
+                removeAnnotation(id);
+            });
+
+            imageContainer.appendChild(marker);
+
+            // Update annotation list
+            updateAnnotationsList();
+
+            // Update counter
+            counter.textContent = annotations.length;
+        }
+
+        // Update annotation list
+        function updateAnnotationsList() {
+            annotationsList.innerHTML = '';
+
+            annotations.forEach(ann => {
+                const item = document.createElement('div');
+                item.className = `annotation-item annotation-${ann.type}`;
+
+                const info = document.createElement('div');
+                info.className = 'annotation-info';
+                info.textContent = `#${ann.id} - ${ann.type}`;
+
+                const colorInfo = document.createElement('div');
+                colorInfo.className = 'color-info';
+
+                const leftDot = document.createElement('span');
+                leftDot.className = 'color-dot';
+                leftDot.style.backgroundColor = ann.leftLegColor;
+
+                const rightDot = document.createElement('span');
+                rightDot.className = 'color-dot';
+                rightDot.style.backgroundColor = ann.rightLegColor;
+
+                colorInfo.appendChild(leftDot);
+                colorInfo.appendChild(rightDot);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.addEventListener('click', function () {
+                    removeAnnotation(ann.id);
+                });
+
+                item.appendChild(info);
+                item.appendChild(colorInfo);
+                item.appendChild(deleteBtn);
+                annotationsList.appendChild(item);
+            });
+        }
+
+        // Remove annotation
+        function removeAnnotation(id) {
+            // Remove from array
+            annotations = annotations.filter(ann => ann.id !== id);
+
+            // Remove from DOM
+            const marker = document.querySelector(`.annotation-marker[data-id="${id}"]`);
+            if (marker) {
+                marker.remove();
+            }
+
+            // Update annotation list
+            updateAnnotationsList();
+
+            // Update counter
+            counter.textContent = annotations.length;
+        }
+
+        // Clear all annotations
+        function clearAnnotations() {
+            if (annotations.length === 0) return;
+
+            if (!confirm('Are you sure you want to clear all annotations? This action cannot be undone.')) return;
+
+            annotations = [];
+            nextId = 1;
+
+            const markers = document.querySelectorAll('.annotation-marker');
+            markers.forEach(marker => marker.remove());
+
+            // Update annotation list
+            updateAnnotationsList();
+
+            counter.textContent = '0';
+        }
+
+        // Export annotation data (JSON)
+        function exportAnnotations() {
+            if (annotations.length === 0) {
+                alert('There are no annotations to export!');
+                return;
+            }
+
+            const data = {
+                image: annotationImage.src.split('/').pop(), // Keep only the filename
+                currentLeftColor: leftColor,
+                currentRightColor: rightColor,
+                annotations: annotations,
+                exportedAt: new Date().toISOString()
+            };
+
+            const dataStr = JSON.stringify(data, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(dataBlob);
+            link.download = `flamingo_annotations_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            link.click();
+        }
+
+        // Export to Excel function with color display
+        async function exportToExcel() {
+            if (annotations.length === 0) {
+                alert('There are no annotations to export!');
+                return;
+            }
+            try {
+                // Create a new workbook
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('Annotations');
+                // Add headers with styling
+                const headerRow = worksheet.addRow([
+                    'ID', 'Type', 'Leg', 'Left Leg Color', 'Right Leg Color',
+                    'X Coordinate', 'Y Coordinate', 'Timestamp'
+                ]);
+
+                // Style header row
+                headerRow.eachCell((cell) => {
+                    cell.font = {bold: true};
+                    cell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: {argb: 'FFE0E0E0'}
+                    };
+                });
+                // Add data and apply colors
+                annotations.forEach(ann => {
+                    const row = worksheet.addRow([
+                        ann.id,
+                        ann.type,
+                        ann.leg,
+                        ann.leftLegColor,
+                        ann.rightLegColor,
+                        ann.x,
+                        ann.y,
+                        ann.timestamp
+                    ]);
+                    // Apply left leg color (column D)
+                    const leftColorCell = row.getCell(4);
+                    leftColorCell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: {argb: hexToArgb(ann.leftLegColor)}
+                    };
+                    // Apply right leg color (column E)
+                    const rightColorCell = row.getCell(5);
+                    rightColorCell.fill = {
+                        type: 'pattern',
+                        pattern: 'solid',
+                        fgColor: {argb: hexToArgb(ann.rightLegColor)}
+                    };
+                });
+                // Auto-fit columns for better readability
+                worksheet.columns.forEach(column => {
+                    let maxLength = 0;
+                    column.eachCell({includeEmpty: true}, (cell) => {
+                        const columnLength = cell.value ? cell.value.toString().length : 10;
+                        if (columnLength > maxLength) {
+                            maxLength = columnLength;
+                        }
+                    });
+                    column.width = maxLength < 10 ? 10 : maxLength + 2;
+                });
+                // Generate Excel file and download
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                });
+
+                const fileName = `flamingo_annotations_${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
+                saveAs(blob, fileName);
+
+            } catch (error) {
+                console.error('Error exporting to Excel:', error);
+                alert('Error exporting to Excel. Please check the console for details.');
+            }
+        }
+
+// Helper function to convert hex color to ARGB format
+        function hexToArgb(hex) {
+            hex = hex.replace('#', '');
+
+            if (hex.length === 3) {
+                hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+
+            return 'FF' + hex; // FF for full opacity
+        }
+    });
+</script>
 </body>
 </html>
